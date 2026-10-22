@@ -29,224 +29,89 @@ class MobileSecurityTools:
             except:
                 self.output_dir = "."
     
+    @staticmethod
+    def inspect_mobile_archive(path, extension):
+        """Report only facts verified from ZIP metadata; never invent findings."""
+        import hashlib
+        import zipfile
+
+        if not os.path.isfile(path) or not path.lower().endswith(extension):
+            raise ValueError("File is missing or has the wrong extension")
+        if not zipfile.is_zipfile(path):
+            raise ValueError("Invalid ZIP archive")
+        size = os.path.getsize(path)
+        if size > 1024 * 1024 * 1024:
+            raise ValueError("Archive larger than 1 GiB is not supported")
+        digest = hashlib.sha256()
+        with open(path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        with zipfile.ZipFile(path) as archive:
+            entries = archive.infolist()
+            if len(entries) > 50000:
+                raise ValueError("Too many archive entries")
+            if sum(info.file_size for info in entries) > 2 * 1024 ** 3:
+                raise ValueError("Expanded archive size exceeds 2 GiB")
+            if archive.testzip() is not None:
+                raise ValueError("Corrupt archive entry")
+            filenames = [item.filename for item in entries]
+            if extension == ".apk":
+                manifest_found = "AndroidManifest.xml" in filenames
+            else:
+                manifest_found = any(
+                    name.startswith("Payload/") and name.endswith(".app/Info.plist")
+                    for name in filenames
+                )
+            if not manifest_found:
+                raise ValueError("Expected application manifest not found")
+        return {
+            "file": os.path.basename(path),
+            "size_bytes": size,
+            "sha256": digest.hexdigest(),
+            "entries": len(entries),
+            "manifest_present": manifest_found,
+        }
+
+    def _archive_analyzer(self, extension):
+        label = "Android APK" if extension == ".apk" else "iOS IPA"
+        path = input("Enter path to {} file: ".format(label)).strip()
+        try:
+            facts = self.inspect_mobile_archive(path, extension)
+        except (ValueError, OSError, __import__("zipfile").BadZipFile) as exc:
+            print("[!] Analysis failed: {}".format(exc))
+            input("\nPress Enter to continue...")
+            return
+
+        report = (
+            "{} archive inspection (not a vulnerability assessment)\n"
+            "File: {}\nSize (bytes): {}\nSHA-256: {}\n"
+            "Archive entries: {}\nExpected manifest present: {}\n"
+            "Permissions: NOT ANALYZED\nSecurity vulnerabilities: NOT ANALYZED\n"
+            "No security conclusions can be drawn from archive structure alone.\n"
+        ).format(label, facts["file"], facts["size_bytes"], facts["sha256"],
+                 facts["entries"], facts["manifest_present"])
+        print(report)
+        report_path = os.path.join(
+            self.output_dir, "{}_archive_{}.txt".format(
+                extension.lstrip("."), facts["sha256"][:16]
+            )
+        )
+        try:
+            with open(report_path, "w", encoding="utf-8") as handle:
+                handle.write(report)
+            print("[+] Report saved: {}".format(report_path))
+        except OSError as exc:
+            print("[!] Cannot save report: {}".format(exc))
+        input("\nPress Enter to continue...")
+
     def android_app_analyzer(self):
-        """Analyze Android APK files for security issues"""
-        print("[+] Android Application Analyzer")
-        
-        apk_path = input("Enter path to APK file: ")
-        if not apk_path or not os.path.exists(apk_path):
-            print("[!] Invalid file path or file does not exist.")
-            input("\nPress Enter to continue...")
-            return
-            
-        print(f"[*] Analyzing APK: {apk_path}")
-        
-        # Check file is actually an APK
-        if not apk_path.lower().endswith('.apk'):
-            print("[!] File does not have .apk extension. Continuing anyway...")
-        
-        # Basic APK information
-        file_size = os.path.getsize(apk_path) / (1024 * 1024)  # Size in MB
-        print(f"[+] APK Size: {file_size:.2f} MB")
-        
-        # Simulate APK analysis
-        print("[*] Decompiling APK...")
-        time.sleep(2)
-        
-        print("[*] Analyzing manifest...")
-        time.sleep(1.5)
-        
-        # Android permissions (common ones)
-        permissions = [
-            "android.permission.INTERNET",
-            "android.permission.ACCESS_NETWORK_STATE",
-            "android.permission.READ_EXTERNAL_STORAGE",
-            "android.permission.WRITE_EXTERNAL_STORAGE",
-            "android.permission.CAMERA",
-            "android.permission.READ_CONTACTS",
-            "android.permission.ACCESS_FINE_LOCATION",
-            "android.permission.RECORD_AUDIO"
-        ]
-        
-        # Randomly select some permissions to simulate finding them
-        app_permissions = random.sample(permissions, random.randint(3, len(permissions)))
-        
-        print("\n[+] Detected permissions:")
-        for perm in app_permissions:
-            print(f"  - {perm}")
-        
-        # Categorize permissions by risk level
-        dangerous_permissions = [
-            "android.permission.READ_CONTACTS",
-            "android.permission.WRITE_CONTACTS",
-            "android.permission.ACCESS_FINE_LOCATION", 
-            "android.permission.ACCESS_COARSE_LOCATION",
-            "android.permission.RECORD_AUDIO",
-            "android.permission.CAMERA",
-            "android.permission.READ_PHONE_STATE",
-            "android.permission.READ_CALL_LOG",
-            "android.permission.READ_SMS",
-            "android.permission.SEND_SMS"
-        ]
-        
-        high_risk_perms = [p for p in app_permissions if p in dangerous_permissions]
-        
-        if high_risk_perms:
-            print("\n[!] High-risk permissions detected:")
-            for perm in high_risk_perms:
-                print(f"  - {perm}")
-        
-        # Security issues to simulate finding
-        security_issues = [
-            ("Insecure Data Storage", "App may store sensitive data without encryption", random.random() < 0.3),
-            ("Weak Cryptography", "App uses outdated or weak cryptographic algorithms", random.random() < 0.2),
-            ("Unprotected Communication", "App communicates over insecure channels", random.random() < 0.4),
-            ("Hardcoded Credentials", "App contains hardcoded API keys or credentials", random.random() < 0.2),
-            ("Insecure Logging", "App logs sensitive information", random.random() < 0.5),
-            ("Exported Components", "App exposes components to other applications", random.random() < 0.4),
-            ("WebView Vulnerabilities", "App uses WebView with JavaScript enabled", random.random() < 0.3)
-        ]
-        
-        found_issues = [(name, desc) for name, desc, found in security_issues if found]
-        
-        if found_issues:
-            print("\n[!] Potential security issues detected:")
-            for name, desc in found_issues:
-                print(f"  - {name}: {desc}")
-        else:
-            print("\n[+] No obvious security issues detected.")
-        
-        # Generate report
-        print("\n[*] Generating report...")
-        report_path = os.path.join(self.output_dir, f"android_analysis_{os.path.basename(apk_path)}.txt")
-        
-        try:
-            with open(report_path, 'w') as f:
-                f.write(f"Android Application Analysis Report\n")
-                f.write(f"================================\n\n")
-                f.write(f"APK: {apk_path}\n")
-                f.write(f"Size: {file_size:.2f} MB\n\n")
-                
-                f.write("Permissions:\n")
-                for perm in app_permissions:
-                    risk = "HIGH RISK" if perm in dangerous_permissions else "Normal"
-                    f.write(f"  - {perm} ({risk})\n")
-                
-                f.write("\nSecurity Issues:\n")
-                if found_issues:
-                    for name, desc in found_issues:
-                        f.write(f"  - {name}: {desc}\n")
-                else:
-                    f.write("  No obvious security issues detected.\n")
-            
-            print(f"[+] Report saved to: {report_path}")
-            
-        except Exception as e:
-            print(f"[!] Error saving report: {e}")
-        
-        input("\nPress Enter to continue...")
-    
+        """Inspect APK container facts without claiming a security scan."""
+        self._archive_analyzer(".apk")
+
     def ios_app_analyzer(self):
-        """Analyze iOS IPA files for security issues"""
-        print("[+] iOS Application Analyzer")
-        
-        ipa_path = input("Enter path to IPA file: ")
-        if not ipa_path:
-            print("[!] No file specified.")
-            input("\nPress Enter to continue...")
-            return
-        
-        if not os.path.exists(ipa_path):
-            print("[!] File does not exist.")
-            input("\nPress Enter to continue...")
-            return
-            
-        print(f"[*] Analyzing IPA: {ipa_path}")
-        
-        # Check file is actually an IPA
-        if not ipa_path.lower().endswith('.ipa'):
-            print("[!] File does not have .ipa extension. Continuing anyway...")
-        
-        # Basic IPA information
-        file_size = os.path.getsize(ipa_path) / (1024 * 1024)  # Size in MB
-        print(f"[+] IPA Size: {file_size:.2f} MB")
-        
-        print("[*] This is a simulated analysis as full iOS app analysis requires macOS.")
-        
-        # Simulate IPA analysis
-        print("[*] Extracting IPA...")
-        time.sleep(2)
-        
-        print("[*] Analyzing Info.plist...")
-        time.sleep(1.5)
-        
-        # iOS permission strings (Privacy - strings in Info.plist)
-        permissions = [
-            "NSCameraUsageDescription",
-            "NSContactsUsageDescription",
-            "NSLocationWhenInUseUsageDescription",
-            "NSMicrophoneUsageDescription",
-            "NSPhotoLibraryUsageDescription",
-            "NSFaceIDUsageDescription",
-            "NSBluetoothAlwaysUsageDescription"
-        ]
-        
-        # Randomly select some permissions to simulate finding them
-        app_permissions = random.sample(permissions, random.randint(2, len(permissions)))
-        
-        print("\n[+] Detected permissions:")
-        for perm in app_permissions:
-            print(f"  - {perm}")
-        
-        # Security issues to simulate finding
-        security_issues = [
-            ("Insecure Data Storage", "App may store sensitive data without encryption", random.random() < 0.3),
-            ("No App Transport Security", "ATS settings allow insecure connections", random.random() < 0.4),
-            ("Weak Keychain Configuration", "App uses weak keychain protection", random.random() < 0.2),
-            ("Jailbreak Detection Bypass", "App's jailbreak detection can be bypassed", random.random() < 0.3),
-            ("Excessive Permissions", "App requests unnecessary permissions", random.random() < 0.5),
-            ("Insecure WebView Implementation", "App uses WebView without proper security", random.random() < 0.3),
-            ("Hardcoded Secrets", "App contains hardcoded API keys or credentials", random.random() < 0.2)
-        ]
-        
-        found_issues = [(name, desc) for name, desc, found in security_issues if found]
-        
-        if found_issues:
-            print("\n[!] Potential security issues detected:")
-            for name, desc in found_issues:
-                print(f"  - {name}: {desc}")
-        else:
-            print("\n[+] No obvious security issues detected.")
-        
-        # Generate report
-        print("\n[*] Generating report...")
-        report_path = os.path.join(self.output_dir, f"ios_analysis_{os.path.basename(ipa_path)}.txt")
-        
-        try:
-            with open(report_path, 'w') as f:
-                f.write(f"iOS Application Analysis Report\n")
-                f.write(f"==============================\n\n")
-                f.write(f"IPA: {ipa_path}\n")
-                f.write(f"Size: {file_size:.2f} MB\n\n")
-                
-                f.write("Permissions:\n")
-                for perm in app_permissions:
-                    f.write(f"  - {perm}\n")
-                
-                f.write("\nSecurity Issues:\n")
-                if found_issues:
-                    for name, desc in found_issues:
-                        f.write(f"  - {name}: {desc}\n")
-                else:
-                    f.write("  No obvious security issues detected.\n")
-            
-            print(f"[+] Report saved to: {report_path}")
-            
-        except Exception as e:
-            print(f"[!] Error saving report: {e}")
-        
-        input("\nPress Enter to continue...")
-    
+        """Inspect IPA container facts without claiming a security scan."""
+        self._archive_analyzer(".ipa")
+
     def mobile_vulnerability_scanner(self):
         """Scan for mobile device vulnerabilities"""
         print("[+] Mobile Vulnerability Scanner")
