@@ -1,0 +1,22 @@
+name: Mobile archive regression
+on:
+  push:
+    branches: [main, fix/mobile-authentic-file-inspection]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  mobile:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-15-intel]
+        python-version: ['3.9', '3.11']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m py_compile mobile_security.py
+      - run: python -m unittest discover -s tests -v
