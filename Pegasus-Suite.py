@@ -40,7 +40,7 @@ wpsycmium = wpsymposium  # Alias for wpsycmium
 # Define missing functions
 def clearScr():
     """Clear the screen based on the operating system."""
-    if system() == 'Linux':
+    if system() in ('Linux', 'Darwin'):
         os.system('clear')
     if system() == 'Windows':
         os.system('cls')
