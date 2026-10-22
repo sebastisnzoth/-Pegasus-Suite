@@ -1,0 +1,27 @@
+name: macOS compatibility smoke
+on:
+  push:
+    branches: [main, fix/macos-catalina-launcher]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-15-intel]
+        python-version: ['3.9', '3.11']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Python syntax
+        run: python -m py_compile Pegasus-Suite.py pegasus_imports.py osint.py
+      - name: Regression tests
+        run: python -m unittest discover -s tests -v
+      - name: macOS installer shell syntax
+        if: runner.os == 'macOS'
+        run: sh -n install-macos.sh
