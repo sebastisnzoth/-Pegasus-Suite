@@ -59,6 +59,11 @@ class OSINTTools:
         domain = re.sub(r'^www\.', '', domain)
         domain = domain.split('/')[0]  # Remove any path
         
+        if not re.fullmatch(r"(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+", domain):
+            print("[!] Invalid domain name.")
+            input("\nPress Enter to continue...")
+            return
+        
         print(f"[*] Looking up WHOIS information for: {domain}")
         
         try:
@@ -98,19 +103,8 @@ class OSINTTools:
             else:
                 print(f"[!] API request failed with status code: {response.status_code}")
                 
-                # Simulate basic WHOIS output for demo purposes
-                print("\n[+] Simulated WHOIS Information:")
-                print(f"Domain Name: {domain}")
-                print("Registrar: Example Registrar, LLC")
-                print("WHOIS Server: whois.example.com")
-                print("Updated Date: 2023-01-01T00:00:00Z")
-                print("Creation Date: 2020-01-01T00:00:00Z")
-                print("Expiration Date: 2024-01-01T00:00:00Z")
-                print("Name Servers: NS1.EXAMPLE.COM, NS2.EXAMPLE.COM")
-                print("Status: clientTransferProhibited")
-                print("Registrant Organization: Example Organization")
-                print("Registrant Country: US")
-                print("Admin Email: admin@example.com")
+
+                print("[!] WHOIS unavailable: no verified data returned.")
         
         except Exception as e:
             print(f"[!] Error performing WHOIS lookup: {e}")
@@ -132,6 +126,11 @@ class OSINTTools:
         domain = re.sub(r'^www\.', '', domain)
         domain = domain.split('/')[0]  # Remove any path
         
+        if not re.fullmatch(r"(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+", domain):
+            print("[!] Invalid domain name.")
+            input("\nPress Enter to continue...")
+            return
+        
         print(f"[*] Looking up DNS records for: {domain}")
         
         try:
@@ -148,34 +147,34 @@ class OSINTTools:
                 
                 # MX Records (Mail servers)
                 print("\n[+] MX Records (Mail Servers):")
-                os.system(f"dig MX {domain} +short")
+                subprocess.run(["dig", "MX", domain, "+short"], check=False, timeout=15)
                 
                 # NS Records (Name Servers)
                 print("\n[+] NS Records (Name Servers):")
-                os.system(f"dig NS {domain} +short")
+                subprocess.run(["dig", "NS", domain, "+short"], check=False, timeout=15)
                 
                 # TXT Records
                 print("\n[+] TXT Records:")
-                os.system(f"dig TXT {domain} +short")
+                subprocess.run(["dig", "TXT", domain, "+short"], check=False, timeout=15)
                 
                 # CNAME Records
                 print("\n[+] CNAME Records:")
-                os.system(f"dig CNAME {domain} +short")
+                subprocess.run(["dig", "CNAME", domain, "+short"], check=False, timeout=15)
             else:
                 # Windows alternative using nslookup
                 print("\n[+] Using Windows tools for additional records:")
                 
                 # MX Records
                 print("\n[+] MX Records (Mail Servers):")
-                os.system(f"nslookup -type=mx {domain}")
+                subprocess.run(["nslookup", "-type=mx", domain], check=False, timeout=15)
                 
                 # NS Records
                 print("\n[+] NS Records (Name Servers):")
-                os.system(f"nslookup -type=ns {domain}")
+                subprocess.run(["nslookup", "-type=ns", domain], check=False, timeout=15)
                 
                 # TXT Records
                 print("\n[+] TXT Records:")
-                os.system(f"nslookup -type=txt {domain}")
+                subprocess.run(["nslookup", "-type=txt", domain], check=False, timeout=15)
                 
             # Use online API for additional information if requests is available
             if REQUESTS_AVAILABLE:
